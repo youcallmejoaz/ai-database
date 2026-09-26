@@ -1,0 +1,29 @@
+# Render Blueprint: New > Blueprint in the Render dashboard, pick this repo.
+# Render asks for the values marked `sync: false` when you create it.
+services:
+  - type: web
+    name: ai-database
+    runtime: node
+    # Same region as the database, so DATABASE_URL can be its Internal URL.
+    region: virginia
+    plan: free
+    branch: main
+    buildCommand: pnpm install --frozen-lockfile && pnpm build
+    startCommand: pnpm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # The playwright dev dependency is only for `pnpm media`; skip its browser download.
+      - key: PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD
+        value: "1"
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      # Use the database's Internal Database URL (no sslmode needed inside Render).
+      - key: DATABASE_URL
+        sync: false
+      # The login for the app. The password must be at least 12 characters.
+      - key: BASIC_AUTH_USER
+        sync: false
+      - key: BASIC_AUTH_PASSWORD
+        sync: false

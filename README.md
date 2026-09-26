@@ -10,7 +10,7 @@ clicked **Approve**.
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-any-4169e1?logo=postgresql&logoColor=white)
 ![Claude](https://img.shields.io/badge/Claude-Opus%205-d97757)
-![Tests](https://img.shields.io/badge/tests-31%20passing-2ea44f)
+![Tests](https://img.shields.io/badge/tests-39%20passing-2ea44f)
 
 <p align="center">
   <img src="docs/media/demo.gif" alt="Asking for the top customers, then restocking a product: the agent proposes an UPDATE, shows the affected row, and applies it after approval" width="880">
@@ -204,9 +204,45 @@ The dry run executes the statement for real before rolling it back, so it can
 advance sequences and fire triggers. Triggers that call out to external systems
 would fire during the preview.
 
-**The web UI has no login.** Run it only on a trusted network, or put
-authentication in front of it before exposing it. Anyone who can open it can
-read your data and propose changes.
+**Login.** Anyone who can open the app can read your data and propose
+changes, so it has a built-in login (HTTP Basic auth, `src/proxy.ts`):
+
+- Set `BASIC_AUTH_USER` and `BASIC_AUTH_PASSWORD` (12+ characters) and every
+  page and API route asks for them. `/api/health` stays public and returns
+  only `{"ok":true}`.
+- In production (`pnpm start`) the login is **required**: without it the app
+  answers 503 with instructions, so a deploy can't expose the database by
+  accident. `AUTH_DISABLED=true` overrides this, for private networks only.
+- In development (`pnpm dev`) it's off unless you set the two variables.
+- It's one shared login with no per-user permissions and no lockout after
+  failed attempts, so use a long random password and always serve it over
+  HTTPS (Render does).
+
+## Deploy to Render
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/youcallmejoaz/ai-database)
+
+The repo includes a [`render.yaml`](render.yaml) Blueprint that describes the
+web service: build and start commands, the Virginia region, the health check,
+and the environment variables.
+
+1. In Render, choose **New → Blueprint** and pick this repository (or use the
+   button above).
+2. Fill in the values it asks for:
+   - `ANTHROPIC_API_KEY`
+   - `DATABASE_URL`: if your database is on Render in the same region, use its
+     **Internal Database URL**. Otherwise use the external URL with `sslmode`
+     (see below).
+   - `BASIC_AUTH_USER` and `BASIC_AUTH_PASSWORD` for the app's login.
+3. Deploy, open the `.onrender.com` URL, and sign in.
+
+If your database is in a different region, change `region` in `render.yaml`
+to match it, or use the external URL.
+
+On Render, conversations and the audit log live on the instance, so a deploy
+or restart clears them. The free plan also sleeps after a period of
+inactivity. To keep the audit log, attach a persistent disk and point
+`AUDIT_LOG_PATH` at it.
 
 ## Hosted databases (Render, Supabase, Neon, …)
 
@@ -236,6 +272,8 @@ read your data and propose changes.
 | `STATEMENT_TIMEOUT_MS` | `10000` | Per-statement timeout |
 | `MAX_TOOL_ITERATIONS` | `15` | Model round-trips per message before stopping |
 | `AUDIT_LOG_PATH` | `logs/audit.jsonl` | Audit log file |
+| `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD` | none | Login for the app. Required in production |
+| `AUTH_DISABLED` | none | `true` runs production without a login (private networks only) |
 
 Requests use adaptive thinking and streaming, and set `fallbacks: "default"`.
 If the primary model's safety classifier declines a request, Anthropic
@@ -256,7 +294,8 @@ full loop, including pause, approve and resume, with a scripted stand-in for
 the Claude API, so they need no API key.
 
 To re-record the screenshots and GIF in `docs/media` (the app must be running;
-`DEMO_DATABASE_URL` reloads the demo tables before each scene):
+`DEMO_DATABASE_URL` reloads the demo tables before each scene; add
+`BASIC_AUTH_USER`/`BASIC_AUTH_PASSWORD` if the login is on):
 
 ```bash
 APP_URL=http://localhost:3000 DEMO_DATABASE_URL=postgres://agent:agent@localhost:5432/shop pnpm media
@@ -271,7 +310,8 @@ src/lib/sqlGuard.ts   SQL parsing and allow-rules
 src/lib/schema.ts     schema introspection → prompt summary
 src/lib/db.ts         connection pools and transactions
 src/lib/store.ts      conversation store (in memory)
-src/app/api/…         chat, decision and schema endpoints (SSE)
+src/app/api/…         chat, decision, schema and health endpoints
+src/proxy.ts          login check for every page and API route
 src/components/…      chat UI
 db/seed.sql           demo schema and data
 scripts/              keyless demo server and screenshot/GIF capture
@@ -282,7 +322,8 @@ scripts/              keyless demo server and screenshot/GIF capture
 - Conversations live in server memory. They are lost on restart and are not
   shared across multiple server instances. `ConversationStore` in `store.ts` is
   the seam for a Redis- or Postgres-backed store.
-- No authentication or per-user permissions in the UI.
+- One shared login (HTTP Basic auth), with no per-user accounts, permissions or
+  rate limiting.
 - Postgres only. Another engine (MySQL, SQLite) would need its own guard and
   introspection.
 - No schema changes through the agent, by design.

@@ -5,6 +5,8 @@
  *
  *   APP_URL=http://localhost:3000 DEMO_DATABASE_URL=postgres://agent:agent@localhost:5432/shop pnpm media
  *
+ * If the app has its login enabled, set BASIC_AUTH_USER and BASIC_AUTH_PASSWORD too.
+ *
  * Works against real Claude or scripts/demo-claude.mjs. When DEMO_DATABASE_URL
  * is set, the demo tables are reloaded before each scene. Point it only at the
  * demo database: db/seed.sql drops and recreates its tables.
@@ -22,6 +24,10 @@ const APP_URL = process.env.APP_URL || "http://localhost:3000";
 const OUT = path.resolve(import.meta.dirname, "../docs/media");
 const SEED = path.resolve(import.meta.dirname, "../db/seed.sql");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Sign in when the app has the login enabled.
+const httpCredentials = process.env.BASIC_AUTH_USER
+  ? { username: process.env.BASIC_AUTH_USER, password: process.env.BASIC_AUTH_PASSWORD ?? "" }
+  : undefined;
 
 async function reseed() {
   if (!process.env.DEMO_DATABASE_URL) return;
@@ -81,6 +87,7 @@ async function newPage(browser, options = {}) {
     viewport: { width: 1100, height: 760 },
     deviceScaleFactor: 2,
     colorScheme: "light",
+    httpCredentials,
     ...options,
   });
   const page = await context.newPage();
@@ -250,7 +257,7 @@ try {
 
   // 6. Demo GIF: ask, see the answer stream in, request a change, approve it.
   await reseed();
-  const context = await browser.newContext({ viewport: { width: 880, height: 620 }, deviceScaleFactor: 1 });
+  const context = await browser.newContext({ viewport: { width: 880, height: 620 }, deviceScaleFactor: 1, httpCredentials });
   await context.addInitScript(CURSOR_SCRIPT);
   page = await context.newPage();
   await page.goto(APP_URL);

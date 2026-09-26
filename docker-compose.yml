@@ -1,0 +1,13 @@
+# Local Postgres with the demo shop data: `docker compose up -d`
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: agent
+      POSTGRES_PASSWORD: agent
+      POSTGRES_DB: shop
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./db/seed.sql:/docker-entrypoint-initdb.d/01-seed.sql:ro
+      - ./db/test-db.sql:/docker-entrypoint-initdb.d/02-test-db.sql:ro

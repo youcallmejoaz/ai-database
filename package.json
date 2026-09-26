@@ -1,0 +1,37 @@
+{
+  "name": "ai-database",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A chat agent that queries and safely updates a Postgres database using Claude.",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.128.0",
+    "libpg-query": "^18.1.5",
+    "next": "^16.3.6",
+    "pg": "^8.23.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "@types/pg": "^8.23.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.3.6",
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.2"
+  },
+  "engines": {
+    "node": ">=20.9"
+  }
+}

@@ -9,6 +9,14 @@ function cellClass(value: unknown): string | undefined {
   return undefined;
 }
 
+/** A column is numeric when every non-null value in it is. */
+function numericColumns(result: TableResult): boolean[] {
+  return result.columns.map((_, c) => {
+    const values = result.rows.map((row) => row[c]).filter((v) => v !== null);
+    return values.length > 0 && values.every((v) => cellClass(v) === "num");
+  });
+}
+
 function display(value: unknown): string {
   if (value === null || value === undefined) return "NULL";
   if (typeof value === "object") return JSON.stringify(value);
@@ -17,13 +25,16 @@ function display(value: unknown): string {
 
 export function ResultTable({ result }: { result: TableResult }) {
   if (result.columns.length === 0) return <p className="muted">No columns returned.</p>;
+  const numeric = numericColumns(result);
   return (
     <div className="table-wrap">
       <table>
         <thead>
           <tr>
             {result.columns.map((column, i) => (
-              <th key={i}>{column}</th>
+              <th key={i} className={numeric[i] ? "num" : undefined}>
+                {column}
+              </th>
             ))}
           </tr>
         </thead>

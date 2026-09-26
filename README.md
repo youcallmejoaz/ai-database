@@ -1,13 +1,66 @@
 # ai-database
 
-A chat agent for your Postgres database. Ask questions in plain English and it
-writes and runs the SQL, then shows the answer with the result table. Ask for a
-change and it drafts the `INSERT` / `UPDATE` / `DELETE`, dry-runs it, and shows
-you exactly which rows it would touch. **Nothing changes until you click
-Approve.**
+**Talk to your Postgres database in plain English, safely.**
 
-Built with Next.js, TypeScript, [`pg`](https://node-postgres.com/) and Claude
-(`claude-opus-5`) through the Anthropic SDK.
+An AI agent that answers questions about your data by writing and running SQL,
+and makes changes only after you've seen exactly which rows they touch and
+clicked **Approve**.
+
+![Next.js](https://img.shields.io/badge/Next.js-16-000?logo=nextdotjs)
+![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-any-4169e1?logo=postgresql&logoColor=white)
+![Claude](https://img.shields.io/badge/Claude-Opus%205-d97757)
+![Tests](https://img.shields.io/badge/tests-31%20passing-2ea44f)
+
+<p align="center">
+  <img src="docs/media/demo.gif" alt="Asking for the top customers, then restocking a product: the agent proposes an UPDATE, shows the affected row, and applies it after approval" width="880">
+</p>
+
+## Highlights
+
+- **Plain-English answers, backed by real SQL.** Every answer shows the query
+  it ran and the result table, so you can check its work.
+- **Human-in-the-loop writes.** A change is dry-run first. You see the rows it
+  would touch, a warning if a delete cascades to other tables, and Approve /
+  Reject buttons. Nothing is written until you approve.
+- **Guardrails that parse, not pattern-match.** SQL goes through the real
+  Postgres parser. Mass updates, schema changes, and dangerous functions are
+  blocked before they reach the database.
+- **Built for real use.** It streams responses, keeps the schema in a cached
+  prompt, adapts to your schema automatically, logs every action to an audit
+  log, and works on phones and in dark mode.
+
+## Screenshots
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/media/conversation.png" alt="A question answered with a result table, followed by an approved stock update"></td>
+    <td width="50%"><img src="docs/media/approval-card.png" alt="Approval card for a DELETE, warning that related order_items rows will also be deleted"></td>
+  </tr>
+  <tr>
+    <td><b>Ask, then act.</b> The answer comes with the SQL and data behind it. The stock update was applied only after approval.</td>
+    <td><b>See before you change.</b> The preview shows the exact rows affected and warns about <code>ON DELETE CASCADE</code>.</td>
+  </tr>
+  <tr>
+    <td><img src="docs/media/guardrail.png" alt="A request to delete all customers is blocked because the DELETE has no WHERE clause"></td>
+    <td><img src="docs/media/dark-mode.png" alt="Revenue by category in dark mode"></td>
+  </tr>
+  <tr>
+    <td><b>Guardrails.</b> "Delete all customers" is refused before it reaches the database.</td>
+    <td><b>Dark mode</b>, following the system setting.</td>
+  </tr>
+</table>
+
+<p align="center">
+  <img src="docs/media/mobile.png" alt="The chat on a phone, listing an out-of-stock product" width="300">
+</p>
+
+> The screenshots and GIF use the bundled demo shop database. The assistant's
+> wording in them comes from [`scripts/demo-claude.mjs`](scripts/demo-claude.mjs),
+> a scripted stand-in for the Claude API, so the demo runs without an API key.
+> Everything else is the real app: the agent loop, SQL checks, Postgres
+> queries, previews and UI. Run `pnpm media` against real Claude to re-shoot
+> them.
 
 ## Quick start
 
@@ -27,36 +80,78 @@ docker compose up -d              # Postgres on :5432 with the demo data loaded
 # DATABASE_URL=postgres://agent:agent@localhost:5432/shop
 ```
 
-Then try: *"Who are our top 3 customers by total spend?"*, *"Which products
-are out of stock?"*, *"Restock the webcam to 25 units"*.
+### Try it without an API key
+
+```bash
+pnpm demo:claude                  # scripted Claude stand-in on :4010
+ANTHROPIC_BASE_URL=http://localhost:4010 ANTHROPIC_API_KEY=demo pnpm dev
+```
+
+Then click the example questions, or ask *"Restock the HD webcam to 25 units"*
+or *"Remove the cancelled order 4"*. The demo only knows these scripted
+questions. With a real key, you can ask anything.
 
 ## How it works
 
-```
-Browser chat ──SSE──▶ /api/chat ──▶ agent loop ──▶ Claude (streaming, tool use)
-                                        │
-                                        ├─ list_tables / describe_table ─┐
-                                        ├─ run_select ───────────────────┼─▶ Postgres
-                                        └─ propose_write ─▶ dry run ─────┘
-                                                              │
-                                   pauses, shows preview ◀────┘
-Approve / Reject ──▶ /api/chat/:id/decision ──▶ runs (or not), loop resumes
+```mermaid
+sequenceDiagram
+    actor U as You
+    participant UI as Chat UI
+    participant A as Agent loop
+    participant C as Claude
+    participant G as SQL guard
+    participant DB as Postgres
+
+    U->>UI: "Restock the HD webcam to 25 units"
+    UI->>A: POST /api/chat (streamed back as SSE)
+    A->>C: conversation + cached schema + tools
+    C-->>A: propose_write(UPDATE products …)
+    A->>G: parse: one UPDATE, has WHERE, no blocked functions
+    A->>DB: BEGIN, run with RETURNING *, ROLLBACK (dry run)
+    A-->>UI: preview: 1 row, before you decide
+    Note over A: turn paused, tool call left open
+    U->>UI: Approve
+    UI->>A: POST /api/chat/:id/decision
+    A->>DB: BEGIN, run, check row count matches preview, COMMIT
+    A->>C: tool result: applied
+    C-->>UI: "Done. The HD Webcam now has 25 units…"
 ```
 
-- **Schema awareness.** At startup the agent introspects the database into a
-  compact summary: tables, columns, types, keys and foreign keys. The summary goes
-  into the prompt, and the prompt is cached, so later turns are faster and
-  cheaper. Very large schemas are summarized as table names only, and the agent
-  calls `describe_table` as needed. After a migration, `POST /api/schema`
-  reloads the summary.
 - **Tools** (`src/lib/tools.ts`):
   - `list_tables` returns tables and views with row estimates.
   - `describe_table` returns columns, constraints, indexes, and 3 sample rows.
-  - `run_select` runs a single SELECT and returns at most `MAX_SELECT_ROWS` rows.
+  - `run_select` runs a single read-only SELECT.
   - `propose_write` handles one INSERT/UPDATE/DELETE and waits for approval.
-- **Streaming UI.** The reply streams as it's written. Every query shows its SQL
-  (collapsed) and its result table. A write appears as an approval card with a
-  preview of the affected rows.
+- **Schema awareness.** At startup the agent introspects the database into a
+  compact summary: tables, columns, types, keys and foreign keys. The summary
+  goes into the prompt as a cached block, so later turns are faster and cheaper.
+  Very large schemas are summarized as table names only, and the agent calls
+  `describe_table` as needed. `POST /api/schema` reloads the summary after a
+  migration.
+
+## Engineering decisions
+
+- **Pausing the agent loop for approval.** The loop is hand-written around
+  `client.messages.stream()`, not a helper that runs to completion. Approval
+  arrives in a *different HTTP request*, so the loop has to stop at
+  `propose_write`, keep the open tool call, and resume when the decision
+  comes in. History is append-only: earlier messages are never edited, which
+  keeps the prompt cache valid.
+- **Parse SQL instead of matching it with regexes.** A regex can't reliably
+  tell `DELETE` inside a string literal from a data-modifying CTE.
+  `libpg-query` is the actual Postgres parser compiled to WASM, so the guard
+  sees what the database will see.
+- **Defense in depth.** The parser check is the first layer, not the only one.
+  Reads run inside `READ ONLY` transactions with the extended protocol, which
+  refuses a second statement. Writes are capped by row count. A least-privilege
+  database role is recommended as the final layer (below).
+- **Catching drift between preview and approval.** Someone can change the
+  data while you're reading the preview. So the approved statement runs again
+  and is committed only if it touches the same number of rows the preview
+  showed. Otherwise it rolls back and tells the model why.
+- **Testable without an API key.** The Anthropic client is injected, so the
+  tests drive the full pause → approve → resume flow against a real Postgres
+  with a scripted client. The same idea powers the keyless demo.
 
 ## Safety model
 
@@ -146,6 +241,13 @@ throwaway one (docker compose creates `shop_test`). The agent tests drive the
 full loop, including pause, approve and resume, with a scripted stand-in for
 the Claude API, so they need no API key.
 
+To re-record the screenshots and GIF in `docs/media` (the app must be running;
+`DEMO_DATABASE_URL` reloads the demo tables before each scene):
+
+```bash
+APP_URL=http://localhost:3000 DEMO_DATABASE_URL=postgres://agent:agent@localhost:5432/shop pnpm media
+```
+
 Layout:
 
 ```
@@ -158,6 +260,7 @@ src/lib/store.ts      conversation store (in memory)
 src/app/api/…         chat, decision and schema endpoints (SSE)
 src/components/…      chat UI
 db/seed.sql           demo schema and data
+scripts/              keyless demo server and screenshot/GIF capture
 ```
 
 ## Limitations and next steps

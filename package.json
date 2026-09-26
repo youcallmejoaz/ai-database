@@ -10,7 +10,9 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "demo:claude": "node scripts/demo-claude.mjs",
+    "media": "node scripts/capture-media.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.128.0",
@@ -24,10 +26,14 @@
   "devDependencies": {
     "@types/node": "^26.6.3",
     "@types/pg": "^8.23.1",
+    "@types/pngjs": "^6.0.5",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.3.6",
+    "gifenc": "^1.0.3",
+    "playwright": "1.56.1",
+    "pngjs": "^7.0.0",
     "typescript": "^6.0.3",
     "vitest": "^5.0.2"
   },

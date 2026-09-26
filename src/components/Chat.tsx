@@ -36,7 +36,7 @@ const EXAMPLES = [
   "Which tables are in this database?",
   "Who are our top 3 customers by total spend?",
   "Which products are out of stock?",
-  "Mark order 7 as paid",
+  "Show revenue by category",
 ];
 
 /** Apply one streamed event to the parts of the assistant message being built. */
@@ -84,8 +84,9 @@ function ToolCall({ part }: { part: ToolPart }) {
         : part.name === "list_tables"
           ? "Listed tables"
           : part.name === "propose_write"
-            ? "Proposed change was refused"
+            ? "Change blocked by the safety checks"
             : part.name;
+  const isBlockedWrite = part.name === "propose_write";
   const running = !part.result;
   return (
     <div className={`tool ${part.result?.isError ? "tool-error" : ""}`}>
@@ -94,7 +95,7 @@ function ToolCall({ part }: { part: ToolPart }) {
           <span className={`dot ${running ? "dot-running" : part.result?.isError ? "dot-error" : "dot-ok"}`} aria-hidden />
           {label}
           {running && <span className="muted"> …</span>}
-          {part.result?.isError && <span className="muted"> (error)</span>}
+          {part.result?.isError && !isBlockedWrite && <span className="muted"> (error)</span>}
         </summary>
         {sql && <pre className="sql">{sql}</pre>}
         {part.result && !part.result.table && <pre className="tool-output">{part.result.content}</pre>}
@@ -291,7 +292,7 @@ export function Chat() {
               send(input);
             }
           }}
-          placeholder="Ask a question or describe a change…"
+          placeholder="Ask about your data…"
           rows={1}
           aria-label="Message"
         />

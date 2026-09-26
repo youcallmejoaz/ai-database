@@ -105,11 +105,11 @@ pre.sql, pre.tool-output {
   overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 260px;
 }
 
-.table-wrap { overflow-x: auto; margin-top: 8px; max-height: 420px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; }
+.table-wrap { background: var(--surface); overflow-x: auto; margin-top: 8px; max-height: 420px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; }
 table { border-collapse: collapse; width: 100%; font-size: 13px; }
 th, td { padding: 6px 10px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; max-width: 320px; overflow: hidden; text-overflow: ellipsis; }
 th { position: sticky; top: 0; background: var(--surface-2); font-weight: 600; }
-td.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 td.null { color: var(--muted); font-style: italic; }
 .table-meta { margin: 0; padding: 6px 10px; font-size: 12px; color: var(--muted); background: var(--surface); }
 

@@ -4,6 +4,7 @@
   "private": true,
   "description": "A chat agent that queries and safely updates a Postgres database using Claude.",
   "type": "module",
+  "packageManager": "pnpm@10.33.0",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

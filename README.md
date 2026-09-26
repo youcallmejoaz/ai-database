@@ -208,6 +208,20 @@ would fire during the preview.
 authentication in front of it before exposing it. Anyone who can open it can
 read your data and propose changes.
 
+## Hosted databases (Render, Supabase, Neon, …)
+
+- Use the **external** connection URL. Internal URLs (such as Render's
+  internal database URL) only resolve for services running inside that
+  provider's network, so they don't work locally or on another host.
+- These providers require SSL, so add `sslmode` to the URL:
+  `…/dbname?sslmode=verify-full`. node-postgres treats `sslmode=require` as
+  `verify-full`. If the connection fails with a certificate error, use
+  `sslmode=no-verify`: traffic is still encrypted, but the server certificate
+  isn't checked.
+- Keep the URL in `.env.local` (git-ignored). If the database also backs a live
+  app, connect with the restricted role described in [Safety model](#safety-model),
+  not the owner account.
+
 ## Configuration
 
 | Variable | Default | Purpose |
